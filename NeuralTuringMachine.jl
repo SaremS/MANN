@@ -45,7 +45,7 @@ function NTMCell(in::Integer, hidden::Integer, out::Integer, N::Integer, M::Inte
 
 
   input_layer = Chain(Dense(in, hidden, relu))
-  output_layer = Chain(Dense(hidden + M, out))
+  output_layer = Chain(Dense(hidden + M, hidden, relu), Dense(hidden, out))
 
   memory = [TrackedArray(Float32.(ones((M)).*1e-6)) for n in 1:N]
   write_array = [TrackedArray(Float32.(softmax(randn((M))))) for n in 1:N]
@@ -184,8 +184,7 @@ function (m::NTMCell)((memory, write_array, read_array), x)
   #println(size(latent))
 
   latent_concat = cat(rt,latent;dims=1)
-  println("latent")
-  println(latent_concat)
+
 
   output = m.output_layer(latent_concat)
 
@@ -202,20 +201,42 @@ Flux.@treelike NTMCell
 
 NTM(a...;ka...) = Flux.Recur(NTMCell(a...;ka...))
 
-input = randn((2,))
-test = NTM(2, 2, 1, 3, 2)
-test.state
 
 
 
 
 
 
-
-test(randn((2,)))
-
-
-
+X = collect(range(0; stop = 5, length=100))
+y = sin.(X*5.)
+X = [[X[i]] for i in 1:100]
 
 
-test.state
+test2 = NTM(1, 50, 1, 10, 5)
+
+
+function loss(x,y)
+  l = mean((Tracker.collect(vcat(test2.(x)...)) .- y).^2)
+  println(l.data)
+  Flux.truncate!(test2)
+  Flux.reset!(test2)
+  return l
+end
+
+
+
+Flux.reset!(test2)
+
+opt = ADAM(0.1)
+for i in 1:500
+  Flux.train!(loss, Flux.params(test2), [[X, y]], opt)
+end
+
+
+
+
+Flux.reset!(test2)
+forecast = test2.(X)
+
+plot(vcat(X...), y)
+plot!(vcat(X...), [f.data[1] for f in forecast])
