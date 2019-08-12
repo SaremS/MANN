@@ -45,7 +45,7 @@ function NTMCell(in::Integer, hidden::Integer, out::Integer, N::Integer, M::Inte
 
 
   input_layer = Chain(Dense(in, hidden, relu))
-  output_layer = Chain(Dense(hidden + N, out))
+  output_layer = Chain(Dense(hidden + M, out))
 
   memory = [TrackedArray(Float32.(ones((M)).*1e-6)) for n in 1:N]
   write_array = [TrackedArray(Float32.(softmax(randn((M))))) for n in 1:N]
@@ -179,12 +179,19 @@ function (m::NTMCell)((memory, write_array, read_array), x)
   rt = [read_memory(m.memory[i], read_array[i]) for i in 1:m.N]
   Mt = [write_memory(m.memory[i], write_array[i], write_et, write_at) for i in 1:m.N]
 
-  #println("rt")
+
+
+  println("rt")
+  println(rt)
+
+  rt = reduce(+, rt)
+  println("rtz")
+  println(rt)
   #println(size((Tracker.collect(hcat(rt...)))[1,:]))
   #println(size(latent))
 
-  latent_concat = cat(Tracker.collect(hcat(rt...))[1,:],latent;dims=1)
-  #println(latent_concat)
+  latent_concat = cat(rt,latent;dims=1)
+  println(latent_concat)
 
   output = m.output_layer(latent_concat)
 
@@ -204,16 +211,9 @@ NTM(a...;ka...) = Flux.Recur(NTMCell(a...;ka...))
 
 
 
-test = NTM(2, 2, 1, 3, 1)
-
+test = NTM(2, 2, 1, 3, 2)
+test.cell.write_array
 
 test(input)
-mem = test.memory
-wra = test.write_array
-rra = test.read_array
 
-input = Float32.(ones((2)))
-
-mem
-test((mem, wra, rra), input)
-println("\n")
+test.state
