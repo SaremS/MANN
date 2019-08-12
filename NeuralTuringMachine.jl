@@ -66,7 +66,7 @@ function NTMCell(in::Integer, hidden::Integer, out::Integer, N::Integer, M::Inte
   read_βt = Dense(hidden, 1, relu)
   read_gt = Dense(hidden, 1, σ)
   read_st = [Chain(Dense(hidden, 3), softmax) for n in 1:N]
-  read_γt = Chain(Dense(hidden, 1, relu), x->x+1)
+  read_γt = Chain(Dense(hidden, 1, relu), x->x.+1.)
 
 
   cell = NTMCell(N,M,
@@ -125,7 +125,6 @@ function address_memory(βt, kt, Mt, gt, wt1, st, γt)
   wtg = location_focus(gt, wtc, wt1)
   wtt = circular_convolution(wtg, st)
   wt = sharpen_operation(wtt, γt)
-
   return wt
 end
 
@@ -165,37 +164,32 @@ function (m::NTMCell)((memory, write_array, read_array), x)
   write_et = m.write_kt(latent)
 
   read_head = [m.read_head[i](latent) for i in 1:m.N]
-  read_kt = m.write_kt(latent)
-  read_βt = m.write_βt(latent)
-  read_gt = m.write_gt(latent)
-  read_st = [m.write_st[i](latent) for i in 1:m.N]
-  read_γt = m.write_γt(latent)
-
-  read_array = [address_memory(read_βt, read_kt, m.memory[i], read_gt, m.read_array[i], read_st[i], read_γt) for i in 1:m.N]
-  write_array = [address_memory(write_βt, write_kt, m.memory[i], write_gt, m.write_array[i], write_st[i], write_γt) for i in 1:m.N]
+  read_kt = m.read_kt(latent)
+  read_βt = m.read_βt(latent)
+  read_gt = m.read_gt(latent)
+  read_st = [m.read_st[i](latent) for i in 1:m.N]
+  read_γt = m.read_γt(latent)
 
 
-
-  rt = [read_memory(m.memory[i], read_array[i]) for i in 1:m.N]
-  Mt = [write_memory(m.memory[i], write_array[i], write_et, write_at) for i in 1:m.N]
-
+  new_read_array = [address_memory(read_βt, read_kt, memory[i], read_gt, read_array[i], read_st[i], read_γt) for i in 1:m.N]
+  new_write_array = [address_memory(write_βt, write_kt, memory[i], write_gt, write_array[i], write_st[i], write_γt) for i in 1:m.N]
 
 
-  println("rt")
-  println(rt)
+  rt = [read_memory(memory[i], new_read_array[i]) for i in 1:m.N]
+  Mt = [write_memory(memory[i], new_write_array[i], write_et, write_at) for i in 1:m.N]
 
   rt = reduce(+, rt)
-  println("rtz")
-  println(rt)
+
   #println(size((Tracker.collect(hcat(rt...)))[1,:]))
   #println(size(latent))
 
   latent_concat = cat(rt,latent;dims=1)
+  println("latent")
   println(latent_concat)
 
   output = m.output_layer(latent_concat)
 
-  return (Mt, write_array, read_array), output
+  return (Mt, new_write_array, new_read_array), output
 end
 
 
@@ -204,16 +198,24 @@ function Flux.hidden(m::NTMCell)
 end
 
 
-
 Flux.@treelike NTMCell
 
 NTM(a...;ka...) = Flux.Recur(NTMCell(a...;ka...))
 
-
-
+input = randn((2,))
 test = NTM(2, 2, 1, 3, 2)
-test.cell.write_array
+test.state
 
-test(input)
+
+
+
+
+
+
+test(randn((2,)))
+
+
+
+
 
 test.state
